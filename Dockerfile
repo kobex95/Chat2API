@@ -1,15 +1,15 @@
 # 第一阶段：构建应用
-FROM node:18 AS builder
+FROM node:20 AS builder
 
-# 安装系统依赖（包括开发库）
+# 安装 electron-builder 及构建所需的系统库
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Electron 应用运行时库
+    # Electron 应用依赖的图形库
     libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils \
     libatspi2.0-0 libdrm2 libgbm1 libxcb-dri3-0 libasound2 \
     # 打包工具
     fakeroot dpkg file \
-    # node-gyp 等工具链需要
-    python3 make gcc \
+    # node-gyp 需要 python3
+    python3 \
     # 可能被原生模块依赖的开发包（常见）
     libsecret-1-dev libdrm-dev libx11-dev libxcomposite-dev \
     libxdamage-dev libxext-dev libxfixes-dev libxrandr-dev \
@@ -29,15 +29,15 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# 检查关键依赖是否存在（便于调试，出现错误时能看到模块列表）
+# 检查关键依赖是否存在
 RUN npx electron-vite --version || true
 RUN ls node_modules/.bin/electron-vite || echo "electron-vite binary not found"
 
-# 复制代码
+# 复制所有源代码
 COPY . .
 
-# 如果有 postinstall 脚本，我们已经运行过（npm ci 会执行），但如果需要可单独再执行
-# RUN npm run postinstall --if-present
+# 修复：添加 "type": "module" 到 package.json 以支持 PostCSS 配置中的 ES 模块语法
+RUN node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.type='module';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
 
 # 构建前端和主进程
 RUN set -x && npm run build 2>&1
@@ -46,8 +46,9 @@ RUN set -x && npm run build 2>&1
 RUN set -x && npx electron-builder --linux dir 2>&1
 
 # -------------------------------------------------
-# 第二阶段：运行环境（不变）
+# 第二阶段：运行环境
 FROM debian:bookworm-slim
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils \
     libatspi2.0-0 libdrm2 libgbm1 libxcb-dri3-0 libasound2 \
@@ -55,5 +56,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/release/linux-unpacked /opt/chat2api
+
 EXPOSE 8080
 CMD ["xvfb-run", "--auto-servernum", "/opt/chat2api/chat2api", "--no-sandbox"]
