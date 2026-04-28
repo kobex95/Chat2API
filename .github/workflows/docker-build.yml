@@ -7,15 +7,15 @@ on:
   workflow_dispatch:
 
 env:
-  IMAGE_NAME: chat2api   # 可改成你的镜像名
-  REGISTRY: ghcr.io      # 使用 GitHub Container Registry
+  IMAGE_NAME: chat2api          # 镜像名称，可自定义
+  REGISTRY: ghcr.io              # 使用 GitHub Container Registry
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      packages: write            # 允许推送镜像
 
     steps:
       - name: Checkout code
@@ -49,6 +49,8 @@ jobs:
         with:
           context: .
           push: true
-          platforms: linux/amd64   # 如需 arm64 可加 linux/arm64
+          platforms: linux/amd64   # 如需 arm64 可添加 linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BUILDKIT_PROGRESS=plain   # 显示完整构建日志，便于调试
