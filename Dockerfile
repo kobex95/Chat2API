@@ -23,20 +23,25 @@ RUN npm ci
 # 复制源码
 COPY . .
 
-# 修复 package.json：添加 type: module，并指定 electron-vite 的默认输出目录作为主入口
-RUN node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.type='module';p.main='out/main/index.js';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
+# 添加 type: module
+RUN node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.type='module';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
 
 # 构建 Electron 应用
 RUN set -x && npm run build 2>&1
 
-# 调试输出（可选）：检查关键文件是否存在
-RUN ls -la out/main/index.js && ls -la out/renderer/index.html
+# 自动查找主进程入口文件（可能是 index.js 或 index.mjs），并写入 package.json
+RUN set -x && \
+    MAIN_FILE=$(find out/main -type f \( -name "index.js" -o -name "index.mjs" \) | head -1) && \
+    echo "Found main entry: $MAIN_FILE" && \
+    node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.main='$MAIN_FILE';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
 
-# 打包成解压目录，禁用 asar 以避免入口文件找不到的问题
+# 确认修改后的 main 字段（可选调试）
+RUN node -e "console.log('Updated main:', require('./package.json').main)"
+
+# 打包成解压目录，禁用 asar
 RUN set -x && npx electron-builder --linux dir --config.asar=false 2>&1
 
-# -------------------------------------------------
-# 第二阶段：最小化运行环境
+# 第二阶段：运行环境
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
