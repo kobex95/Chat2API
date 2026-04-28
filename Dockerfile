@@ -1,29 +1,40 @@
 # 第一阶段：构建应用
 FROM node:18-slim AS builder
 
+# 安装 electron-builder 所需系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # 基础构建工具
+    build-essential \
+    # electron-builder 依赖的库
+    libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils \
+    libatspi2.0-0 libdrm2 libgbm1 libxcb-dri3-0 libasound2 \
+    # 打包 deb/AppImage 可能需要
+    fakeroot dpkg \
+    # 如果使用 AppImage 需要
+    file \
+    && rm -rf /var/lib/apt/lists/*
+
+# 禁用签名（容器内无需签名）
+ENV CSC_IDENTITY_AUTO_DISCOVERY=false
+
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npm run build:linux
 
-# 第二阶段：运行环境
+# 仅生成解压后的目录，避免创建 .deb/.AppImage 的额外耗时
+RUN npx electron-builder --linux dir
+
+# 第二阶段：运行环境（保持不变）
 FROM debian:bookworm-slim
 
-# 安装 Electron 运行所需的系统库
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils \
-    libatspi2.0-0 libdrm2 libgbm1 libxcb-dri3-0 \
-    libasound2 \
-    # 用于无头运行（没有显示器）
+    libatspi2.0-0 libdrm2 libgbm1 libxcb-dri3-0 libasound2 \
     xvfb \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制构建好的应用（electron-builder 的 dir 模式输出）
 COPY --from=builder /app/release/linux-unpacked /opt/chat2api
 
-# 暴露代理默认端口
 EXPOSE 8080
-
-# 启动脚本：在虚拟 X 服务器中运行 Electron 应用
 CMD ["xvfb-run", "--auto-servernum", "/opt/chat2api/chat2api", "--no-sandbox"]
