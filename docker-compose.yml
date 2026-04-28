@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  chat2api:
+    image: ghcr.io/kobex95/chat2api:main   # 请替换为你的实际镜像地址
+    container_name: chat2api
+    ports:
+      - "8080:8080"                          # 宿主机端口:容器端口，可修改为其他端口如 "9090:8080"
+    volumes:
+      # 挂载配置文件目录（如有需要）
+      - ./chat2api-config:/root/.config/chat2api   # 根据项目实际配置文件路径调整
+    restart: unless-stopped                   # 容器退出时自动重启（可选）
