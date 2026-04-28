@@ -19,8 +19,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # 加速 Electron 下载（国内可用镜像）
 ENV ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
-# 可选：设置 npm 镜像
-# ENV npm_config_registry="https://registry.npmmirror.com"
 
 # 禁用代码签名
 ENV CSC_IDENTITY_AUTO_DISCOVERY=false
@@ -29,14 +27,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# 检查关键依赖是否存在
-RUN npx electron-vite --version || true
-RUN ls node_modules/.bin/electron-vite || echo "electron-vite binary not found"
-
 # 复制所有源代码
 COPY . .
 
-# 修复：添加 "type": "module" 到 package.json 以支持 PostCSS 配置中的 ES 模块语法
+# 修复：添加 "type": "module" 到 package.json，使 PostCSS 配置的 ES 模块语法生效
 RUN node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.type='module';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
 
 # 构建前端和主进程
@@ -46,7 +40,7 @@ RUN set -x && npm run build 2>&1
 RUN set -x && npx electron-builder --linux dir 2>&1
 
 # -------------------------------------------------
-# 第二阶段：运行环境
+# 第二阶段：最小化运行环境
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
