@@ -24,11 +24,11 @@ RUN npm run build
 # 第二阶段：运行时环境
 FROM node:20-slim
 
-# 安装 Electron 运行依赖 + 虚拟显示器 + xauth
+# 安装 Electron 运行依赖 + 虚拟显示器 + xauth + dbus
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils \
     libatspi2.0-0 libdrm2 libgbm1 libxcb-dri3-0 libasound2 \
-    xvfb xauth \
+    xvfb xauth dbus \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -40,5 +40,5 @@ COPY --from=builder /app/package.json ./
 
 EXPOSE 8080
 
-# 自动查找主进程入口，并通过 xvfb 运行 Electron
-CMD ["sh", "-c", "MAIN=$(find out/main -type f \\( -name index.js -o -name index.mjs \\) | head -1) && xvfb-run --auto-servernum npx electron $MAIN --no-sandbox"]
+# 启动命令：使用固定的入口路径，添加必要的 Chromium 标志
+CMD ["sh", "-c", "xvfb-run --auto-servernum npx electron out/main/index.mjs --no-sandbox --disable-gpu --disable-software-rasterizer --disable-dev-shm-usage"]
