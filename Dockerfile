@@ -37,16 +37,18 @@ COPY --from=builder /app/package.json ./
 
 EXPOSE 8080
 
-# 启动 dbus，然后动态查找主进程入口文件并运行 Electron
+# 启动：只搜索 out/main 下的主进程文件
 CMD ["sh", "-c", "\
   service dbus start 2>/dev/null || true; \
-  ENTRY=$(find out -type f \\( -name 'index.js' -o -name 'index.mjs' \\) | grep -v node_modules | head -1); \
-  if [ -z \"$ENTRY\" ]; then \
-    echo 'ERROR: Application entry not found in out/ directory'; \
+  MAIN_ENTRY=$(find out/main -type f \\( -name index.js -o -name index.mjs \\) | head -1); \
+  if [ -z \"$MAIN_ENTRY\" ]; then \
+    echo 'ERROR: Main process entry not found in out/main/'; \
+    echo 'Files in out/main:'; \
+    ls -la out/main/ || true; \
     exit 1; \
   fi; \
-  echo 'Starting Chat2API with entry:' $ENTRY; \
-  exec xvfb-run --auto-servernum npx electron $ENTRY \
+  echo 'Using main entry:' $MAIN_ENTRY; \
+  exec xvfb-run --auto-servernum npx electron $MAIN_ENTRY \
     --no-sandbox \
     --disable-gpu \
     --disable-software-rasterizer \
