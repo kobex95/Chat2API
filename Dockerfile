@@ -20,14 +20,15 @@ RUN node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.
 # 构建（产出 out/ 目录）
 RUN npm run build
 
+# -------------------------------------------------
 # 第二阶段：运行时环境
 FROM node:20-slim
 
-# 安装 Electron 运行依赖 + 虚拟显示器
+# 安装 Electron 运行依赖 + 虚拟显示器 + xauth
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils \
     libatspi2.0-0 libdrm2 libgbm1 libxcb-dri3-0 libasound2 \
-    xvfb \
+    xvfb xauth \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
