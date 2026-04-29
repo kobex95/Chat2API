@@ -17,18 +17,24 @@ COPY . .
 # 修复 PostCSS 模块语法
 RUN node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.type='module';fs.writeFileSync('package.json',JSON.stringify(p,null,2))"
 
-# 构建应用，并找出主进程入口文件，保存到临时文件
-RUN npm run build && \
-    MAIN_FILE=$(find out/main -type f \( -name "index.js" -o -name "index.mjs" \) | head -1) && \
-    if [ -z "$MAIN_FILE" ]; then echo "ERROR: No entry file found!"; find out/main -type f; exit 1; fi && \
-    echo "Found entry: $MAIN_FILE" && \
-    echo "$MAIN_FILE" > /app/entry_path.txt
+# 构建应用
+RUN npm run build
+
+# 调试：列出 out 目录的所有文件，帮助我们找到主入口
+RUN echo "=== Listing out directory ===" && \
+    find out -type f && \
+    echo "=== package.json main ===" && \
+    node -e "console.log(require('./package.json').main)" && \
+    echo "=== Try to locate potential entries ===" && \
+    find out -name "index.*" -type f
+
+# 暂时写入占位入口文件（运行时会重新查找）
+RUN echo "placeholder" > /app/entry_path.txt
 
 # -------------------------------------------------
 # 第二阶段：运行时环境
 FROM node:20-slim
 
-# 安装 Electron 运行依赖 + 虚拟显示器 + xauth + dbus
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils \
     libatspi2.0-0 libdrm2 libgbm1 libxcb-dri3-0 libasound2 \
@@ -37,17 +43,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# 复制 node_modules、构建输出、入口文件路径
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/out ./out
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/entry_path.txt ./
 
 EXPOSE 8080
 
-# 启动脚本：先启动 dbus，再通过 xvfb 运行 Electron
+# 动态查找入口文件并运行（在 out 目录下搜索 index.js 或 index.mjs）
 CMD ["sh", "-c", "\
   service dbus start 2>/dev/null || true; \
-  ENTRY=$(cat /app/entry_path.txt); \
+  ENTRY=$(find out -type f \\( -name \"index.js\" -o -name \"index.mjs\" \\) | grep -v node_modules | head -1); \
+  if [ -z \"$ENTRY\" ]; then \
+    echo 'No entry found. Listing out directory:'; \
+    find out -type f; \
+    exit 1; \
+  fi; \
   echo 'Using entry:' $ENTRY; \
   xvfb-run --auto-servernum npx electron $ENTRY --no-sandbox --disable-gpu --disable-software-rasterizer --disable-dev-shm-usage"]
