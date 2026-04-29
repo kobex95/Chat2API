@@ -37,13 +37,12 @@ COPY --from=builder /app/package.json ./
 
 EXPOSE 8080
 
-# 启动：只搜索 out/main 下的主进程文件
+# 启动脚本：匹配 index.js, index.mjs, index.cjs
 CMD ["sh", "-c", "\
   service dbus start 2>/dev/null || true; \
-  MAIN_ENTRY=$(find out/main -type f \\( -name index.js -o -name index.mjs \\) | head -1); \
+  MAIN_ENTRY=$(find out/main -type f \\( -name 'index.js' -o -name 'index.mjs' -o -name 'index.cjs' \\) | head -1); \
   if [ -z \"$MAIN_ENTRY\" ]; then \
     echo 'ERROR: Main process entry not found in out/main/'; \
-    echo 'Files in out/main:'; \
     ls -la out/main/ || true; \
     exit 1; \
   fi; \
